@@ -1,1 +1,267 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Match3 PRO</title>
 
+<style>
+body{
+margin:0;
+background:#0f172a;
+font-family:Arial;
+color:white;
+overflow:hidden;
+}
+
+.screen{
+display:none;
+width:100vw;
+height:100vh;
+flex-direction:column;
+align-items:center;
+justify-content:center;
+}
+
+button{
+padding:14px 28px;
+font-size:18px;
+border:none;
+border-radius:12px;
+background:#3b82f6;
+color:white;
+margin:10px;
+box-shadow:0 0 15px #3b82f6;
+}
+
+canvas{
+background:#0b1220;
+border-radius:20px;
+box-shadow:0 0 40px rgba(0,0,0,0.8);
+}
+
+#menu{display:flex;}
+</style>
+</head>
+<body>
+
+<div id="menu" class="screen">
+<h1>🔥 MATCH 3 PRO</h1>
+<button onclick="startGame()">Start Game</button>
+</div>
+
+<div id="game" class="screen">
+<canvas id="canvas" width="480" height="480"></canvas>
+<div style="margin-top:10px;">
+<button onclick="pauseGame()">Pause</button>
+<span id="score">Score: 0</span>
+</div>
+</div>
+
+<div id="pause" class="screen">
+<h1>Paused</h1>
+<button onclick="resumeGame()">Resume</button>
+<button onclick="backMenu()">Menu</button>
+</div>
+
+<div id="win" class="screen">
+<h1>🎉 You Win!</h1>
+<h2 id="finalScore"></h2>
+<button onclick="backMenu()">Menu</button>
+</div>
+
+<script>
+
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+const rows=8, cols=8, size=60;
+let grid=[], selected=null, score=0, running=false;
+let animations=[];
+const colors=["#ff4d6d","#ffd60a","#2ec4b6","#3a86ff","#9d4edd","#fb5607"];
+
+function show(id){
+document.querySelectorAll(".screen").forEach(s=>s.style.display="none");
+document.getElementById(id).style.display="flex";
+}
+
+function startGame(){
+score=0;
+selected=null;
+running=true;
+init();
+show("game");
+loop();
+}
+
+function pauseGame(){running=false;show("pause");}
+function resumeGame(){running=true;show("game");loop();}
+function backMenu(){running=false;show("menu");}
+
+function init(){
+grid=[];
+for(let r=0;r<rows;r++){
+let row=[];
+for(let c=0;c<cols;c++){
+row.push({color:randColor(), y:r*size});
+}
+grid.push(row);
+}
+}
+
+function randColor(){return colors[Math.floor(Math.random()*colors.length)];}
+
+function draw(){
+ctx.clearRect(0,0,480,480);
+for(let r=0;r<rows;r++){
+for(let c=0;c<cols;c++){
+let cell=grid[r][c];
+if(!cell) continue;
+let x=c*size;
+let y=cell.y;
+
+ctx.beginPath();
+ctx.arc(x+30,y+30,25,0,Math.PI*2);
+ctx.fillStyle=cell.color;
+ctx.shadowColor=cell.color;
+ctx.shadowBlur=15;
+ctx.fill();
+ctx.shadowBlur=0;
+
+if(selected && selected.r==r && selected.c==c){
+ctx.lineWidth=4;
+ctx.strokeStyle="#fff";
+ctx.stroke();
+}
+}
+}
+}
+
+function swap(a,b){
+let temp=grid[a.r][a.c];
+grid[a.r][a.c]=grid[b.r][b.c];
+grid[b.r][b.c]=temp;
+}
+
+function checkMatches(){
+let matches=[];
+for(let r=0;r<rows;r++){
+for(let c=0;c<cols-2;c++){
+if(grid[r][c]&&grid[r][c+1]&&grid[r][c+2]){
+let col=grid[r][c].color;
+if(col==grid[r][c+1].color && col==grid[r][c+2].color){
+matches.push([r,c],[r,c+1],[r,c+2]);
+}
+}
+}
+}
+for(let c=0;c<cols;c++){
+for(let r=0;r<rows-2;r++){
+if(grid[r][c]&&grid[r+1][c]&&grid[r+2][c]){
+let col=grid[r][c].color;
+if(col==grid[r+1][c].color && col==grid[r+2][c].color){
+matches.push([r,c],[r+1,c],[r+2,c]);
+}
+}
+}
+}
+return matches;
+}
+
+function removeMatches(matches){
+matches.forEach(([r,c])=>{
+animations.push({r,c,time:20});
+});
+score+=matches.length*5;
+document.getElementById("score").innerText="Score: "+score;
+}
+
+function collapse(){
+for(let c=0;c<cols;c++){
+for(let r=rows-1;r>=0;r--){
+if(!grid[r][c]){
+for(let k=r-1;k>=0;k--){
+if(grid[k][c]){
+grid[r][c]=grid[k][c];
+grid[k][c]=null;
+break;
+}
+}
+if(!grid[r][c]){
+grid[r][c]={color:randColor(),y:-60};
+}
+}
+}
+}
+}
+
+function updateAnimations(){
+for(let i=animations.length-1;i>=0;i--){
+let a=animations[i];
+ctx.fillStyle="white";
+ctx.globalAlpha=a.time/20;
+ctx.beginPath();
+ctx.arc(a.c*size+30,a.r*size+30,30,0,Math.PI*2);
+ctx.fill();
+ctx.globalAlpha=1;
+a.time--;
+if(a.time<=0){
+grid[a.r][a.c]=null;
+animations.splice(i,1);
+}
+}
+}
+
+function updateFall(){
+for(let r=0;r<rows;r++){
+for(let c=0;c<cols;c++){
+let cell=grid[r][c];
+if(cell && cell.y < r*size){
+cell.y+=10;
+}
+}
+}
+}
+
+function loop(){
+if(!running)return;
+draw();
+updateAnimations();
+updateFall();
+
+if(animations.length==0){
+let matches=checkMatches();
+if(matches.length>0){
+removeMatches(matches);
+setTimeout(collapse,200);
+}
+}
+
+if(score>=300){
+running=false;
+document.getElementById("finalScore").innerText="Score: "+score;
+show("win");
+}
+
+requestAnimationFrame(loop);
+}
+
+canvas.addEventListener("click",(e)=>{
+if(!running)return;
+let rect=canvas.getBoundingClientRect();
+let c=Math.floor((e.clientX-rect.left)/size);
+let r=Math.floor((e.clientY-rect.top)/size);
+
+if(!selected){
+selected={r,c};
+}else{
+if(Math.abs(selected.r-r)+Math.abs(selected.c-c)==1){
+swap(selected,{r,c});
+}
+selected=null;
+}
+});
+
+</script>
+</body>
+</html>
