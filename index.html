@@ -3,77 +3,55 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Match3 Optimized</title>
-
+<title>Match3 Level System</title>
 <style>
-body{
-margin:0;
-background:#0f172a;
-font-family:Arial;
-color:white;
-overflow:hidden;
-}
-
-.screen{
-display:none;
-width:100vw;
-height:100vh;
-flex-direction:column;
-align-items:center;
-justify-content:center;
-}
-
-button{
-padding:12px 24px;
-font-size:16px;
-border:none;
-border-radius:10px;
-background:#2563eb;
-color:white;
-margin:10px;
-}
-
-canvas{
-background:#0b1220;
-border-radius:15px;
-}
-
+body{margin:0;background:#0f172a;font-family:Arial;color:white;overflow:hidden;}
+.screen{display:none;width:100vw;height:100vh;flex-direction:column;align-items:center;justify-content:center;}
+button{padding:10px 20px;border:none;border-radius:8px;margin:5px;background:#2563eb;color:white;}
+canvas{background:#0b1220;border-radius:12px;}
 #menu{display:flex;}
+.topbar{margin:10px;}
 </style>
 </head>
 <body>
 
 <div id="menu" class="screen">
 <h1>Match 3</h1>
-<button onclick="startGame()">Start</button>
+<button onclick="startLevel()">Start Level</button>
 </div>
 
 <div id="game" class="screen">
-<canvas id="canvas" width="480" height="480"></canvas>
+<div class="topbar">
+Level: <span id="levelUI"></span> |
+Score: <span id="scoreUI"></span> |
+Moves: <span id="movesUI"></span> |
+Coins: <span id="coinsUI"></span>
+</div>
+<canvas id="canvas" width="420" height="420"></canvas>
 <div>
-<button onclick="pauseGame()">Pause</button>
-<span id="score">Score: 0</span>
+<button onclick="buyMoves()">+5 Moves (20💰)</button>
+<button onclick="watchAd()">Watch Ad (+3)</button>
 </div>
 </div>
 
-<div id="pause" class="screen">
-<h2>Paused</h2>
-<button onclick="resumeGame()">Resume</button>
-<button onclick="backMenu()">Menu</button>
+<div id="result" class="screen">
+<h2 id="resultText"></h2>
+<button onclick="nextAction()">Continue</button>
 </div>
 
 <script>
+const rows=7, cols=7, size=60;
+const colors=["#ff4d6d","#ffd60a","#2ec4b6","#3a86ff","#9d4edd"];
+let grid=[], selected=null;
+
+let level=1;
+let score=0;
+let moves=15;
+let coins=0;
+let targetScore=100;
+
 const canvas=document.getElementById("canvas");
 const ctx=canvas.getContext("2d");
-
-const rows=8, cols=8, size=60;
-const colors=["#ff4d6d","#ffd60a","#2ec4b6","#3a86ff","#9d4edd","#fb5607"];
-
-let grid=[];
-let selected=null;
-let score=0;
-let running=false;
-let lastTime=0;
 
 function show(id){
 document.querySelectorAll(".screen").forEach(s=>s.style.display="none");
@@ -84,46 +62,35 @@ function randColor(){
 return colors[Math.floor(Math.random()*colors.length)];
 }
 
-function init(){
+function initGrid(){
 grid=[];
 for(let r=0;r<rows;r++){
 let row=[];
 for(let c=0;c<cols;c++){
-row.push({color:randColor(),offset:0});
+row.push({color:randColor()});
 }
 grid.push(row);
 }
 }
 
 function draw(){
-ctx.clearRect(0,0,480,480);
-
+ctx.clearRect(0,0,420,420);
 for(let r=0;r<rows;r++){
 for(let c=0;c<cols;c++){
 let cell=grid[r][c];
 if(!cell) continue;
-
-let x=c*size;
-let y=r*size+cell.offset;
-
 ctx.fillStyle=cell.color;
 ctx.beginPath();
-ctx.arc(x+30,y+30,25,0,Math.PI*2);
+ctx.arc(c*size+30,r*size+30,25,0,Math.PI*2);
 ctx.fill();
-
-if(selected && selected.r==r && selected.c==c){
-ctx.strokeStyle="#fff";
-ctx.lineWidth=3;
-ctx.stroke();
-}
 }
 }
 }
 
 function swap(a,b){
-let temp=grid[a.r][a.c];
+let t=grid[a.r][a.c];
 grid[a.r][a.c]=grid[b.r][b.c];
-grid[b.r][b.c]=temp;
+grid[b.r][b.c]=t;
 }
 
 function checkMatches(){
@@ -131,10 +98,8 @@ let matches=new Set();
 
 for(let r=0;r<rows;r++){
 for(let c=0;c<cols-2;c++){
-let a=grid[r][c];
-let b=grid[r][c+1];
-let d=grid[r][c+2];
-if(a && b && d && a.color===b.color && a.color===d.color){
+let a=grid[r][c],b=grid[r][c+1],d=grid[r][c+2];
+if(a&&b&&d&&a.color===b.color&&a.color===d.color){
 matches.add(r+","+c);
 matches.add(r+","+(c+1));
 matches.add(r+","+(c+2));
@@ -144,10 +109,8 @@ matches.add(r+","+(c+2));
 
 for(let c=0;c<cols;c++){
 for(let r=0;r<rows-2;r++){
-let a=grid[r][c];
-let b=grid[r+1][c];
-let d=grid[r+2][c];
-if(a && b && d && a.color===b.color && a.color===d.color){
+let a=grid[r][c],b=grid[r+1][c],d=grid[r+2][c];
+if(a&&b&&d&&a.color===b.color&&a.color===d.color){
 matches.add(r+","+c);
 matches.add((r+1)+","+c);
 matches.add((r+2)+","+c);
@@ -163,8 +126,7 @@ matches.forEach(str=>{
 let [r,c]=str.split(",").map(Number);
 grid[r][c]=null;
 });
-score+=matches.size*5;
-document.getElementById("score").innerText="Score: "+score;
+score+=matches.size*10;
 }
 
 function collapse(){
@@ -179,37 +141,13 @@ grid[r][c]=null;
 }
 }
 for(let i=0;i<empty;i++){
-grid[i][c]={color:randColor(),offset:-size};
+grid[i][c]={color:randColor()};
 }
 }
-}
-
-function update(delta){
-for(let r=0;r<rows;r++){
-for(let c=0;c<cols;c++){
-let cell=grid[r][c];
-if(cell && cell.offset<0){
-cell.offset+=delta*0.5;
-if(cell.offset>0) cell.offset=0;
-}
-}
-}
-}
-
-function loop(timestamp){
-if(!running) return;
-
-let delta=timestamp-lastTime;
-lastTime=timestamp;
-
-update(delta);
-draw();
-
-requestAnimationFrame(loop);
 }
 
 canvas.addEventListener("click",e=>{
-if(!running) return;
+if(moves<=0) return;
 
 let rect=canvas.getBoundingClientRect();
 let c=Math.floor((e.clientX-rect.left)/size);
@@ -220,39 +158,77 @@ selected={r,c};
 }else{
 if(Math.abs(selected.r-r)+Math.abs(selected.c-c)==1){
 swap(selected,{r,c});
+moves--;
+
 let matches=checkMatches();
 if(matches.size>0){
 removeMatches(matches);
 collapse();
 }
+updateUI();
+checkEnd();
 }
 selected=null;
 }
 });
 
-function startGame(){
+function updateUI(){
+document.getElementById("levelUI").innerText=level;
+document.getElementById("scoreUI").innerText=score+"/"+targetScore;
+document.getElementById("movesUI").innerText=moves;
+document.getElementById("coinsUI").innerText=coins;
+draw();
+}
+
+function checkEnd(){
+if(score>=targetScore){
+coins+=50+level*10;
+document.getElementById("resultText").innerText="Level Complete!";
+show("result");
+}
+else if(moves<=0){
+document.getElementById("resultText").innerText="Level Failed";
+show("result");
+}
+}
+
+function startLevel(){
 score=0;
-init();
-running=true;
+moves=15+level;
+targetScore=100+level*50;
+initGrid();
+updateUI();
 show("game");
-requestAnimationFrame(loop);
 }
 
-function pauseGame(){
-running=false;
-show("pause");
+function nextAction(){
+if(score>=targetScore){
+level++;
 }
-
-function resumeGame(){
-running=true;
-show("game");
-requestAnimationFrame(loop);
-}
-
-function backMenu(){
-running=false;
 show("menu");
 }
+
+function buyMoves(){
+if(coins>=20){
+coins-=20;
+moves+=5;
+updateUI();
+}
+}
+
+function watchAd(){
+showRewardedAd(()=>{
+moves+=3;
+updateUI();
+});
+}
+
+function showRewardedAd(callback){
+console.log("Ad watched (stub)");
+setTimeout(callback,1000);
+}
+
+show("menu");
 </script>
 </body>
 </html>
