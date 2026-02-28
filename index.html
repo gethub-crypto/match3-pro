@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Match3 PRO</title>
+<title>Match3 Optimized</title>
 
 <style>
 body{
@@ -24,20 +24,18 @@ justify-content:center;
 }
 
 button{
-padding:14px 28px;
-font-size:18px;
+padding:12px 24px;
+font-size:16px;
 border:none;
-border-radius:12px;
-background:#3b82f6;
+border-radius:10px;
+background:#2563eb;
 color:white;
 margin:10px;
-box-shadow:0 0 15px #3b82f6;
 }
 
 canvas{
 background:#0b1220;
-border-radius:20px;
-box-shadow:0 0 40px rgba(0,0,0,0.8);
+border-radius:15px;
 }
 
 #menu{display:flex;}
@@ -46,91 +44,76 @@ box-shadow:0 0 40px rgba(0,0,0,0.8);
 <body>
 
 <div id="menu" class="screen">
-<h1>🔥 MATCH 3 PRO</h1>
-<button onclick="startGame()">Start Game</button>
+<h1>Match 3</h1>
+<button onclick="startGame()">Start</button>
 </div>
 
 <div id="game" class="screen">
 <canvas id="canvas" width="480" height="480"></canvas>
-<div style="margin-top:10px;">
+<div>
 <button onclick="pauseGame()">Pause</button>
 <span id="score">Score: 0</span>
 </div>
 </div>
 
 <div id="pause" class="screen">
-<h1>Paused</h1>
+<h2>Paused</h2>
 <button onclick="resumeGame()">Resume</button>
 <button onclick="backMenu()">Menu</button>
 </div>
 
-<div id="win" class="screen">
-<h1>🎉 You Win!</h1>
-<h2 id="finalScore"></h2>
-<button onclick="backMenu()">Menu</button>
-</div>
-
 <script>
-
-const canvas = document.getElementById("canvas");
-const ctx = canvas.getContext("2d");
+const canvas=document.getElementById("canvas");
+const ctx=canvas.getContext("2d");
 
 const rows=8, cols=8, size=60;
-let grid=[], selected=null, score=0, running=false;
-let animations=[];
 const colors=["#ff4d6d","#ffd60a","#2ec4b6","#3a86ff","#9d4edd","#fb5607"];
+
+let grid=[];
+let selected=null;
+let score=0;
+let running=false;
+let lastTime=0;
 
 function show(id){
 document.querySelectorAll(".screen").forEach(s=>s.style.display="none");
 document.getElementById(id).style.display="flex";
 }
 
-function startGame(){
-score=0;
-selected=null;
-running=true;
-init();
-show("game");
-loop();
+function randColor(){
+return colors[Math.floor(Math.random()*colors.length)];
 }
-
-function pauseGame(){running=false;show("pause");}
-function resumeGame(){running=true;show("game");loop();}
-function backMenu(){running=false;show("menu");}
 
 function init(){
 grid=[];
 for(let r=0;r<rows;r++){
 let row=[];
 for(let c=0;c<cols;c++){
-row.push({color:randColor(), y:r*size});
+row.push({color:randColor(),offset:0});
 }
 grid.push(row);
 }
 }
 
-function randColor(){return colors[Math.floor(Math.random()*colors.length)];}
-
 function draw(){
 ctx.clearRect(0,0,480,480);
+
 for(let r=0;r<rows;r++){
 for(let c=0;c<cols;c++){
 let cell=grid[r][c];
 if(!cell) continue;
-let x=c*size;
-let y=cell.y;
 
+let x=c*size;
+let y=r*size+cell.offset;
+
+ctx.fillStyle=cell.color;
 ctx.beginPath();
 ctx.arc(x+30,y+30,25,0,Math.PI*2);
-ctx.fillStyle=cell.color;
-ctx.shadowColor=cell.color;
-ctx.shadowBlur=15;
 ctx.fill();
-ctx.shadowBlur=0;
 
 if(selected && selected.r==r && selected.c==c){
-ctx.lineWidth=4;
 ctx.strokeStyle="#fff";
+ctx.lineWidth=3;
 ctx.stroke();
 }
 }
@@ -144,110 +127,90 @@ grid[b.r][b.c]=temp;
 }
 
 function checkMatches(){
-let matches=[];
+let matches=new Set();
+
 for(let r=0;r<rows;r++){
 for(let c=0;c<cols-2;c++){
-if(grid[r][c]&&grid[r][c+1]&&grid[r][c+2]){
-let col=grid[r][c].color;
-if(col==grid[r][c+1].color && col==grid[r][c+2].color){
-matches.push([r,c],[r,c+1],[r,c+2]);
+let a=grid[r][c];
+let b=grid[r][c+1];
+let d=grid[r][c+2];
+if(a && b && d && a.color===b.color && a.color===d.color){
+matches.add(r+","+c);
+matches.add(r+","+(c+1));
+matches.add(r+","+(c+2));
 }
 }
 }
-}
+
 for(let c=0;c<cols;c++){
 for(let r=0;r<rows-2;r++){
-if(grid[r][c]&&grid[r+1][c]&&grid[r+2][c]){
-let col=grid[r][c].color;
-if(col==grid[r+1][c].color && col==grid[r+2][c].color){
-matches.push([r,c],[r+1,c],[r+2,c]);
+let a=grid[r][c];
+let b=grid[r+1][c];
+let d=grid[r+2][c];
+if(a && b && d && a.color===b.color && a.color===d.color){
+matches.add(r+","+c);
+matches.add((r+1)+","+c);
+matches.add((r+2)+","+c);
 }
 }
 }
-}
+
 return matches;
 }
 
 function removeMatches(matches){
-matches.forEach(([r,c])=>{
-animations.push({r,c,time:20});
+matches.forEach(str=>{
+let [r,c]=str.split(",").map(Number);
+grid[r][c]=null;
 });
-score+=matches.length*5;
+score+=matches.size*5;
 document.getElementById("score").innerText="Score: "+score;
 }
 
 function collapse(){
 for(let c=0;c<cols;c++){
+let empty=0;
 for(let r=rows-1;r>=0;r--){
 if(!grid[r][c]){
-for(let k=r-1;k>=0;k--){
-if(grid[k][c]){
-grid[r][c]=grid[k][c];
-grid[k][c]=null;
-break;
+empty++;
+}else if(empty>0){
+grid[r+empty][c]=grid[r][c];
+grid[r][c]=null;
 }
 }
-if(!grid[r][c]){
-grid[r][c]={color:randColor(),y:-60};
-}
-}
+for(let i=0;i<empty;i++){
+grid[i][c]={color:randColor(),offset:-size};
 }
 }
 }
 
-function updateAnimations(){
-for(let i=animations.length-1;i>=0;i--){
-let a=animations[i];
-ctx.fillStyle="white";
-ctx.globalAlpha=a.time/20;
-ctx.beginPath();
-ctx.arc(a.c*size+30,a.r*size+30,30,0,Math.PI*2);
-ctx.fill();
-ctx.globalAlpha=1;
-a.time--;
-if(a.time<=0){
-grid[a.r][a.c]=null;
-animations.splice(i,1);
-}
-}
-}
-
-function updateFall(){
+function update(delta){
 for(let r=0;r<rows;r++){
 for(let c=0;c<cols;c++){
 let cell=grid[r][c];
-if(cell && cell.y < r*size){
-cell.y+=10;
+if(cell && cell.offset<0){
+cell.offset+=delta*0.5;
+if(cell.offset>0) cell.offset=0;
 }
 }
 }
 }
 
-function loop(){
-if(!running)return;
+function loop(timestamp){
+if(!running) return;
+
+let delta=timestamp-lastTime;
+lastTime=timestamp;
+
+update(delta);
 draw();
-updateAnimations();
-updateFall();
-
-if(animations.length==0){
-let matches=checkMatches();
-if(matches.length>0){
-removeMatches(matches);
-setTimeout(collapse,200);
-}
-}
-
-if(score>=300){
-running=false;
-document.getElementById("finalScore").innerText="Score: "+score;
-show("win");
-}
 
 requestAnimationFrame(loop);
 }
 
-canvas.addEventListener("click",(e)=>{
-if(!running)return;
+canvas.addEventListener("click",e=>{
+if(!running) return;
+
 let rect=canvas.getBoundingClientRect();
 let c=Math.floor((e.clientX-rect.left)/size);
 let r=Math.floor((e.clientY-rect.top)/size);
@@ -257,11 +220,39 @@ selected={r,c};
 }else{
 if(Math.abs(selected.r-r)+Math.abs(selected.c-c)==1){
 swap(selected,{r,c});
+let matches=checkMatches();
+if(matches.size>0){
+removeMatches(matches);
+collapse();
+}
 }
 selected=null;
 }
 });
 
+function startGame(){
+score=0;
+init();
+running=true;
+show("game");
+requestAnimationFrame(loop);
+}
+
+function pauseGame(){
+running=false;
+show("pause");
+}
+
+function resumeGame(){
+running=true;
+show("game");
+requestAnimationFrame(loop);
+}
+
+function backMenu(){
+running=false;
+show("menu");
+}
 </script>
 </body>
 </html>
